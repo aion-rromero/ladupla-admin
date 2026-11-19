@@ -444,6 +444,40 @@
     await cargar();
   }
 
+  // ---------------------------------------------------------------- marca (logotipo)
+  // El logotipo vive en un bucket público de solo imágenes; lo sube únicamente el super administrador.
+  const LOGO_TIPOS = ['image/png', 'image/jpeg', 'image/webp'], LOGO_MAX = 1048576;
+  const logoUrl = () => { let v = ''; try { v = localStorage.getItem('ld_logo_v') || ''; } catch (e) { /* sin almacenamiento */ }
+    return cfg.supabaseUrl + '/storage/v1/object/public/marca/logo?v=' + (v || Math.floor(Date.now() / 3600000)); };
+  function cargarLogo() {
+    document.querySelectorAll('img[data-logo]').forEach((img) => { const txt = img.parentElement.querySelector('[data-marca]');
+      img.onload = () => { img.classList.remove('hidden'); if (txt) txt.classList.add('hidden'); };
+      img.onerror = () => { img.classList.add('hidden'); if (txt) txt.classList.remove('hidden'); };
+      img.src = logoUrl(); });
+  }
+  const marcarLogo = () => { try { localStorage.setItem('ld_logo_v', String(Date.now())); } catch (e) { /* sin almacenamiento */ } cargarLogo(); };
+  async function paginaMarca() {
+    const view = $('view'); const archivo = h('input', { type: 'file', accept: LOGO_TIPOS.join(','), required: true });
+    const vista = h('img', { class: 'logo-prev', alt: 'Logotipo actual' }); const sin = h('p', { class: 'muted' }, 'Aún no hay logotipo: se muestra el nombre en texto.');
+    vista.onload = () => { vista.classList.remove('hidden'); sin.classList.add('hidden'); }; vista.onerror = () => { vista.classList.add('hidden'); sin.classList.remove('hidden'); };
+    const refrescar = () => { vista.src = logoUrl(); }; const btn = h('button', { class: 'btn primary', type: 'submit' }, 'Subir logotipo');
+    view.replaceChildren(h('div', { class: 'page-head' }, h('button', { class: 'btn sm menu-btn', type: 'button', onclick: () => $('sidebar').classList.toggle('open') }, '☰'),
+        h('div', { class: 'grow' }, h('h1', {}, 'Marca'), h('p', { class: 'muted' }, 'El logotipo aparece en la pantalla de acceso y en el menú. Lo cambia solo el super administrador.'))),
+      h('div', { class: 'card stack' }, h('h2', {}, 'Logotipo actual'), h('div', { class: 'logo-marco' }, vista, sin),
+        h('div', { class: 'row' }, h('button', { class: 'btn danger', type: 'button', onclick: async () => { if (!confirm('¿Quitar el logotipo? Se mostrará el nombre en texto.')) return;
+          await run(db.storage.from('marca').remove(['logo']), 'Logotipo eliminado'); marcarLogo(); refrescar(); } }, 'Quitar logotipo'))),
+      h('form', { class: 'card stack', onsubmit: async (e) => { e.preventDefault(); const f = archivo.files[0]; if (!f) return;
+          if (!LOGO_TIPOS.includes(f.type)) return toast('Formato no permitido. Usa PNG, JPG o WebP.', 'bad');
+          if (f.size > LOGO_MAX) return toast('El archivo pesa más de 1 MB. Reduce su tamaño.', 'bad');
+          btn.disabled = true;
+          try { await run(db.storage.from('marca').upload('logo', f, { upsert: true, contentType: f.type, cacheControl: '300' }), 'Logotipo actualizado'); archivo.value = ''; marcarLogo(); refrescar(); }
+          finally { btn.disabled = false; } } },
+        h('h2', {}, 'Subir o reemplazar'), h('label', { class: 'field' }, 'Archivo (PNG, JPG o WebP · máximo 1 MB)', archivo),
+        h('p', { class: 'small muted' }, 'Recomendado: PNG con fondo transparente, horizontal, de al menos 600 px de ancho. No se aceptan SVG por seguridad. Los demás usuarios verán el cambio en unos minutos.'),
+        h('div', { class: 'row' }, h('span', { class: 'grow' }), btn)));
+    refrescar();
+  }
+
   // ---------------------------------------------------------------- navegación
   const vistaVisible = (v) => v.ver.includes(perfil.rol) && v.fuentes.every((f) => puede(f, 'ver'));
   function construirNav() {
@@ -453,7 +487,7 @@
       if (!mods.length && !vis.length) return;
       kids.push(h('details', {}, h('summary', {}, l.nombre), vis.map((v) => item('v/' + v.clave, '◆ ' + v.nombre)), mods.map((m) => item('m/' + m.clave, m.nombre, { 'data-mod': m.clave })))); });
     const adm = [esRol('super_admin', 'administrador') ? item('usuarios', 'Usuarios') : null, esRol('super_admin', 'direccion', 'administrador') ? item('permisos', 'Roles y permisos') : null,
-      esRol('super_admin', 'administrador') ? item('sucursales', 'Sucursales') : null, esRol('super_admin', 'direccion') ? item('auditoria', 'Bitácora de auditoría') : null].filter(Boolean);
+      esRol('super_admin', 'administrador') ? item('sucursales', 'Sucursales') : null, esRol('super_admin', 'direccion') ? item('auditoria', 'Bitácora de auditoría') : null, esRol('super_admin') ? item('marca', 'Marca') : null].filter(Boolean);
     if (adm.length) kids.push(h('details', { open: true }, h('summary', {}, 'Administración'), adm));
     nav.replaceChildren(kids);
   }
@@ -468,6 +502,7 @@
       else if (r === 'permisos' && esRol('super_admin', 'direccion', 'administrador')) return await paginaPermisos();
       else if (r === 'sucursales' && esRol('super_admin', 'administrador')) return await paginaSucursales();
       else if (r === 'auditoria' && esRol('super_admin', 'direccion')) return await paginaAuditoria();
+      else if (r === 'marca' && esRol('super_admin')) return await paginaMarca();
       return await paginaInicio();
     } catch (e) { console.error(e); $('view').append(h('div', { class: 'notice' }, 'No fue posible cargar la página: ' + msgErr(e))); }
   }
@@ -501,6 +536,7 @@
   const actividad = () => { clearTimeout(reloj); if (sesion) reloj = setTimeout(async () => { await db.auth.signOut(); toast('Sesión cerrada por inactividad', 'bad'); }, INACTIVIDAD_MIN * 60000); };
 
   if (!listo) { mostrar(true, 'Falta configurar la conexión (config.js).'); $('btnLogin').disabled = true; return; }
+  cargarLogo();
   $('loginForm').addEventListener('submit', async (e) => { e.preventDefault(); $('btnLogin').disabled = true; $('loginMsg').textContent = '';
     const { error } = await db.auth.signInWithPassword({ email: $('email').value.trim(), password: $('password').value }); $('btnLogin').disabled = false; $('password').value = '';
     if (error) $('loginMsg').textContent = msgErr(error); });
