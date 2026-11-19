@@ -487,10 +487,11 @@
   function mostrar(login, msg) { $('login').classList.toggle('hidden', !login); $('app').classList.toggle('hidden', login); if (msg !== undefined) $('loginMsg').textContent = msg; }
   async function iniciar() {
     const { data } = await db.auth.getSession(); sesion = data.session; perfil = null;
-    if (!sesion) return mostrar(true, '');
+    if (!sesion) return mostrar(true);
     let p = (await db.rpc('mi_perfil')).data;
-    if (p && !p.rol) { const { data: ok } = await db.rpc('reclamar_bootstrap'); if (ok) p = (await db.rpc('mi_perfil')).data; }
-    if (!p || !p.rol || !p.activo) { await db.auth.signOut(); return mostrar(true, 'Tu cuenta no tiene acceso asignado. Pide al administrador que la active.'); }
+    let aviso = 'Tu cuenta no tiene acceso asignado. Pide al administrador que la active.';
+    if (p && !p.rol) { const { data: ok, error: eb } = await db.rpc('reclamar_bootstrap'); if (eb) aviso = 'No fue posible activar tu cuenta: ' + msgErr(eb); if (ok) p = (await db.rpc('mi_perfil')).data; }
+    if (!p || !p.rol || !p.activo) { await db.auth.signOut(); return mostrar(true, aviso); }
     if (p.debe_cambiar_password) { mostrar(false); $('nav').replaceChildren(); $('view').replaceChildren(); $('who').textContent = p.email; return cambiarPassword(true); }
     perfil = p; const [d, s] = await Promise.all([db.rpc('directorio'), db.from('sucursales').select('*').order('nombre')]);
     dir = new Map((d.data || []).map((u) => [u.id, u])); sucursales = (s.data || []).filter((x) => x.activa);
