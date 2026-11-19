@@ -1,0 +1,42 @@
+<!doctype html>
+<html lang="es-MX">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src https://*.supabase.co; base-uri 'none'; form-action 'none'; object-src 'none'">
+<meta name="referrer" content="no-referrer">
+<meta name="robots" content="noindex, nofollow">
+<title>La Dupla · Administración</title>
+<link rel="icon" href="data:,">
+<link rel="stylesheet" href="app.css">
+</head>
+<body>
+<div id="login" class="login hidden">
+  <form class="card" id="loginForm" autocomplete="on">
+    <div class="brand" style="padding:0">LA DUPLA<span>Plataforma de administración</span></div>
+    <label class="field">Correo<input id="email" type="email" autocomplete="username" required></label>
+    <label class="field">Contraseña<input id="password" type="password" autocomplete="current-password" required></label>
+    <button class="btn primary" type="submit" id="btnLogin">Entrar</button>
+    <p class="small muted" id="loginMsg"></p>
+    <p class="small muted">Acceso restringido · Toda la actividad queda registrada.</p>
+  </form>
+</div>
+<div id="app" class="app hidden">
+  <aside class="sidebar" id="sidebar">
+    <div class="brand">LA DUPLA<span>Administración</span></div>
+    <nav id="nav"></nav>
+    <div class="side-foot">
+      <span id="who" class="small muted"></span>
+      <button class="btn sm" id="btnPassword" type="button">Cambiar mi contraseña</button>
+      <button class="btn sm" id="btnLogout" type="button">Cerrar sesión</button>
+    </div>
+  </aside>
+  <main class="main" id="view"></main>
+</div>
+<script src="supabase.js"></script>
+<script src="config.js"></script>
+<script src="modulos.js"></script>
+<script src="calc.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
