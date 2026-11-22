@@ -68,7 +68,9 @@
   const catCache = new Map(), filasCache = new Map();
   const puede = (modulo, accion) => !!(perfil && perfil.permisos && perfil.permisos[modulo] && perfil.permisos[modulo][accion]);
   const nombreDe = (id) => (dir.get(id) ? dir.get(id).nombre || '(sin nombre)' : '—');
-  const esRol = (...r) => perfil && r.includes(perfil.rol);
+  const rolesDe = (u) => (u && u.rol ? [u.rol].concat(u.roles_extra || []) : []);
+  const esRol = (...r) => rolesDe(perfil).some((x) => r.includes(x));
+  const rolesNombre = (u) => rolesDe(u).map((x) => ROLES[x]).join(' + ');
 
   async function leer(modulo, filtro) {
     if (!puede(modulo, 'ver')) return [];
@@ -347,11 +349,11 @@
     if (ini) { const p = ini.querySelector('.pill'); if (p) p.remove(); if (tot) ini.append(h('span', { class: 'pill' }, tot)); }
   }
   async function paginaInicio() {
-    const view = $('view'); const captura = MODULOS.filter((m) => puede(m.clave, 'capturar') && m.tipo !== 'unico' && m.cap.includes(perfil.rol));
+    const view = $('view'); const captura = MODULOS.filter((m) => puede(m.clave, 'capturar') && m.tipo !== 'unico' && m.cap.some((x) => rolesDe(perfil).includes(x)));
     const { data: mios } = await db.from('registros').select('id, modulo, fecha, estado, creado_en').eq('creado_por', sesion.user.id).order('creado_en', { ascending: false }).limit(12);
     await refrescarPendientes(); const tot = Array.from(pendientes.values()).reduce((a, b) => a + b, 0);
     view.replaceChildren(h('div', { class: 'page-head' }, h('button', { class: 'btn sm menu-btn', type: 'button', onclick: () => $('sidebar').classList.toggle('open') }, '☰'),
-        h('div', { class: 'grow' }, h('h1', {}, 'Hola, ' + (perfil.nombre || perfil.email)), h('p', { class: 'muted' }, ROLES[perfil.rol] + ' · ' + fFecha(hoy())))),
+        h('div', { class: 'grow' }, h('h1', {}, 'Hola, ' + (perfil.nombre || perfil.email)), h('p', { class: 'muted' }, rolesNombre(perfil) + ' · ' + fFecha(hoy())))),
       h('div', { class: 'kpis' }, h('div', { class: 'kpi' }, h('span', {}, 'Registros por revisar (tuyos como revisor)'), h('b', {}, tot)),
         h('div', { class: 'kpi' }, h('span', {}, 'Formatos que capturas'), h('b', {}, captura.length)), h('div', { class: 'kpi' }, h('span', {}, 'Tus capturas pendientes de revisión'), h('b', {}, (mios || []).filter((r) => r.estado === 'capturado').length))),
       captura.length ? h('div', { class: 'card stack' }, h('h2', {}, 'Tus formatos de captura'), h('div', { class: 'row' }, captura.map((m) => h('a', { class: 'btn sm', href: '#/m/' + m.clave }, m.nombre)))) : null,
@@ -379,16 +381,21 @@
       const email = h('input', { type: 'email', required: true, value: u ? u.email : '', disabled: !!u }), nombre = h('input', { type: 'text', required: true, maxlength: 120, value: u ? u.nombre : '' });
       const rol = h('select', { required: true }, h('option', { value: '' }, '—'), rolesAsignables().map((r) => h('option', { value: r }, ROLES[r]))); if (u && u.rol) rol.value = u.rol;
       const suc = h('select', {}, h('option', { value: '' }, '—'), sucursales.map((s) => h('option', { value: s.id }, s.nombre))); if (u && u.sucursal_id) suc.value = u.sucursal_id;
+      const extras = rolesAsignables().map((r) => ({ r, cb: h('input', { type: 'checkbox', checked: !!(u && (u.roles_extra || []).includes(r)) }) }));
+      const leerExtras = () => extras.filter((x) => x.cb.checked && x.r !== rol.value).map((x) => x.r);
       const activo = h('input', { type: 'checkbox', checked: u ? u.activo : true }); const pass = h('input', { type: 'password', minlength: 10, maxlength: 72, required: !u, autocomplete: 'new-password' });
       const btn = h('button', { class: 'btn primary', type: 'submit' }, u ? 'Guardar' : 'Crear usuario');
       const form = h('form', { class: 'stack', onsubmit: async (e) => { e.preventDefault(); btn.disabled = true;
         try {
-          if (u) await run(db.rpc('usuario_configurar', { p_id: u.id, p_nombre: nombre.value, p_rol: rol.value, p_activo: activo.checked, p_sucursal: suc.value || null, p_forzar_cambio: false }), 'Usuario actualizado');
-          else { await funcionAdmin({ accion: 'crear', email: email.value.trim(), password: pass.value, nombre: nombre.value, rol: rol.value, sucursal: suc.value || null }); toast('Usuario creado', 'ok'); }
+          if (u) await run(db.rpc('usuario_configurar', { p_id: u.id, p_nombre: nombre.value, p_rol: rol.value, p_activo: activo.checked, p_sucursal: suc.value || null, p_forzar_cambio: false, p_roles_extra: leerExtras() }), 'Usuario actualizado');
+          else { await funcionAdmin({ accion: 'crear', email: email.value.trim(), password: pass.value, nombre: nombre.value, rol: rol.value, roles_extra: leerExtras(), sucursal: suc.value || null }); toast('Usuario creado', 'ok'); }
           d.close(); paginaUsuarios();
         } catch (err) { btn.disabled = false; } } },
-        h('div', { class: 'form-grid' }, h('label', { class: 'field' }, 'Correo *', email), h('label', { class: 'field' }, 'Nombre *', nombre), h('label', { class: 'field' }, 'Rol *', rol), h('label', { class: 'field' }, 'Sucursal', suc),
-          u ? null : h('label', { class: 'field' }, 'Contraseña temporal * (mín. 10)', pass)), h('label', { class: 'check' }, activo, 'Usuario activo'),
+        h('div', { class: 'form-grid' }, h('label', { class: 'field' }, 'Correo *', email), h('label', { class: 'field' }, 'Nombre *', nombre), h('label', { class: 'field' }, 'Rol principal *', rol), h('label', { class: 'field' }, 'Sucursal', suc),
+          u ? null : h('label', { class: 'field' }, 'Contraseña temporal * (mín. 10)', pass)),
+        h('div', { class: 'seccion' }, 'Roles adicionales (opcional)'), h('div', { class: 'roles-extra' }, extras.map((x) => h('label', { class: 'check' }, x.cb, ROLES[x.r]))),
+        h('p', { class: 'small muted' }, 'La persona tendrá los permisos de todos sus roles. Úsalo solo cuando realmente cubra más de un puesto: cada rol adicional reduce la separación de funciones. La regla de que nadie revisa lo que él mismo capturó se mantiene.'),
+        h('label', { class: 'check' }, activo, 'Usuario activo'),
         u ? null : h('p', { class: 'small muted' }, 'La contraseña es temporal: el sistema obligará a la persona a cambiarla en su primer acceso. Entrégala en persona, no por chat.'),
         h('div', { class: 'row' }, h('span', { class: 'grow' }), btn));
       const d = dialogo(u ? 'Editar usuario' : 'Nuevo usuario', form);
@@ -397,12 +404,12 @@
       const d = dialogo('Restablecer contraseña · ' + (u.nombre || u.email), h('form', { class: 'stack', onsubmit: async (e) => { e.preventDefault(); btn.disabled = true;
         try { await funcionAdmin({ accion: 'reset', id: u.id, password: pass.value }); toast('Contraseña restablecida; deberá cambiarla al entrar', 'ok'); d.close(); paginaUsuarios(); } catch (err) { btn.disabled = false; } } },
         h('label', { class: 'field' }, 'Nueva contraseña temporal * (mín. 10)', pass), h('div', { class: 'row' }, h('span', { class: 'grow' }), btn))); };
-    const gestionable = (u) => u.id !== sesion.user.id && (esRol('super_admin') || !u.rol || !['super_admin', 'direccion', 'administrador'].includes(u.rol));
+    const gestionable = (u) => u.id !== sesion.user.id && (esRol('super_admin') || !rolesDe(u).some((x) => ['super_admin', 'direccion', 'administrador'].includes(x)));
     view.replaceChildren(h('div', { class: 'page-head' }, h('button', { class: 'btn sm menu-btn', type: 'button', onclick: () => $('sidebar').classList.toggle('open') }, '☰'),
-        h('div', { class: 'grow' }, h('h1', {}, 'Usuarios'), h('p', { class: 'muted' }, 'El super administrador gestiona a todos; el administrador solo a los roles operativos. Nadie cambia su propio rol.')),
+        h('div', { class: 'grow' }, h('h1', {}, 'Usuarios'), h('p', { class: 'muted' }, 'El super administrador gestiona a todos; el administrador solo a los roles operativos. Una persona puede tener un rol principal y roles adicionales. Nadie cambia sus propios roles.')),
         h('button', { class: 'btn primary', type: 'button', onclick: () => formUsuario(null) }, '+ Nuevo usuario')),
       h('div', { class: 'card' }, h('div', { class: 'table-wrap' }, h('table', {}, h('thead', {}, h('tr', {}, ['Nombre', 'Correo', 'Rol', 'Sucursal', 'Estado', ''].map((t) => h('th', {}, t)))),
-        h('tbody', {}, usuarios.map((u) => h('tr', {}, h('td', {}, u.nombre || '—'), h('td', {}, u.email), h('td', {}, u.rol ? ROLES[u.rol] : h('span', { class: 'badge warn' }, 'Sin rol')),
+        h('tbody', {}, usuarios.map((u) => h('tr', {}, h('td', {}, u.nombre || '—'), h('td', {}, u.email), h('td', {}, u.rol ? rolesNombre(u) : h('span', { class: 'badge warn' }, 'Sin rol')),
           h('td', {}, (sucursales.find((s) => s.id === u.sucursal_id) || {}).nombre || '—'),
           h('td', {}, h('span', { class: 'badge ' + (u.activo ? 'ok' : 'bad') }, u.activo ? 'Activo' : 'Inactivo'), u.debe_cambiar_password && u.activo ? h('span', { class: 'badge warn' }, 'Debe cambiar contraseña') : null),
           h('td', { class: 'right nowrap' }, gestionable(u) ? [h('button', { class: 'btn sm', type: 'button', onclick: () => formUsuario(u) }, 'Editar'), ' ', h('button', { class: 'btn sm', type: 'button', onclick: () => reset(u) }, 'Restablecer contraseña')] : null))))))));
@@ -479,7 +486,7 @@
   }
 
   // ---------------------------------------------------------------- navegación
-  const vistaVisible = (v) => v.ver.includes(perfil.rol) && v.fuentes.every((f) => puede(f, 'ver'));
+  const vistaVisible = (v) => v.ver.some((x) => rolesDe(perfil).includes(x)) && v.fuentes.every((f) => puede(f, 'ver'));
   function construirNav() {
     const nav = $('nav'); const item = (ruta, txt, extra) => h('a', Object.assign({ href: '#/' + ruta, 'data-ruta': ruta }, extra || {}), txt);
     const kids = [item('inicio', 'Inicio'), MODULOS.some((m) => puede(m.clave, 'revisar')) ? item('revision', 'Pendientes de revisión') : null];
@@ -530,7 +537,7 @@
     if (p.debe_cambiar_password) { mostrar(false); $('nav').replaceChildren(); $('view').replaceChildren(); $('who').textContent = p.email; return cambiarPassword(true); }
     perfil = p; const [d, s] = await Promise.all([db.rpc('directorio'), db.from('sucursales').select('*').order('nombre')]);
     dir = new Map((d.data || []).map((u) => [u.id, u])); sucursales = (s.data || []).filter((x) => x.activa);
-    $('who').textContent = (perfil.nombre || perfil.email) + ' · ' + ROLES[perfil.rol]; mostrar(false); construirNav(); await ruta(); refrescarPendientes();
+    $('who').textContent = (perfil.nombre || perfil.email) + ' · ' + rolesNombre(perfil); mostrar(false); construirNav(); await ruta(); refrescarPendientes();
   }
   let reloj = null;
   const actividad = () => { clearTimeout(reloj); if (sesion) reloj = setTimeout(async () => { await db.auth.signOut(); toast('Sesión cerrada por inactividad', 'bad'); }, INACTIVIDAD_MIN * 60000); };

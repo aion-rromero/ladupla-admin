@@ -168,3 +168,5 @@ dialog { border-radius: 20px; background: var(--surface); color: var(--ink); } d
 .logo-marco { background: var(--crema); border: 1px dashed #dcc6b0; border-radius: 14px; padding: 24px; display: grid; place-items: center; min-height: 140px; }
 .logo-prev { max-width: 320px; max-height: 160px; object-fit: contain; }
 .meta b { color: var(--noche); }
+
+.roles-extra { grid-column: 1 / -1; display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 6px 14px; }

@@ -160,7 +160,7 @@
         { l: 'Saldo de caja mes 12', v: M.flujo[12].acum, f: 'dinero0' }, { l: 'Saldo de caja mes 24', v: M.flujo[24].acum, f: 'dinero0' },
         { l: 'Ventas acumuladas 24 meses', v: sum(M.con, (x) => x.ventas), f: 'dinero0' }, { l: 'EBITDA acumulado 24 meses', v: M.con.reduce((a, x) => a + x.ebitda, 0), f: 'dinero0' }] },
       { titulo: 'P&L mensual por sucursal individual (sin asignación central ni corporativa)', tabla: { cols: col, fmts: ['txt'].concat(M.suc.map(() => 'dinero0')), filas: [
-        ['% capacidad (rampa)'].concat(M.suc.map((x) => (x.rampa * 100).toFixed(0) + '%')), fila('Transacciones por día', (x) => Math.round(x.trans), M.suc), fila('Ventas brutas', (x) => x.ventas, M.suc),
+        ['% capacidad (rampa)'].concat(M.suc.map((x) => (x.rampa * 100).toFixed(0) + '%')), fila('Transacciones por día', (x) => String(Math.round(x.trans)), M.suc), fila('Ventas brutas', (x) => x.ventas, M.suc),
         fila('Costo de venta', (x) => x.costo, M.suc), fila('Utilidad bruta', (x) => x.bruta, M.suc), fila('Gastos fijos sucursal', (x) => x.fijos, M.suc), fila('EBITDA sucursal', (x) => x.ebitda, M.suc)] } },
       { titulo: 'P&L consolidado · 24 meses', tabla: { cols: col, fmts: fm, filas: [
         fila('# Sucursales activas', (x) => String(x.activas)), fila('Ventas sucursal 1', (x) => x.v[0]), fila('Ventas sucursal 2', (x) => x.v[1]), fila('Ventas sucursal 3', (x) => x.v[2]),
